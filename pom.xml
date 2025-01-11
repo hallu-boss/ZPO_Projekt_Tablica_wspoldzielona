@@ -61,7 +61,7 @@
                         <id>default-cli</id>
                         <configuration>
                             <mainClass>
-                                com.example.zpo_projekt_tablica_wspoldzielona/com.example.zpo_projekt_tablica_wspoldzielona.HelloApplication
+                                com.example.zpo_projekt_tablica_wspoldzielona/com.example.zpo_projekt_tablica_wspoldzielona.ClientApplication
                             </mainClass>
                             <launcher>app</launcher>
                             <jlinkZipName>app</jlinkZipName>
