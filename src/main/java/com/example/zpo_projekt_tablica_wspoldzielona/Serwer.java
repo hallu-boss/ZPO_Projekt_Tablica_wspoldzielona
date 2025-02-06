@@ -13,18 +13,17 @@ import javax.imageio.ImageIO;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 public class Serwer {
+    static AtomicBoolean running = new AtomicBoolean(true);
     // obsługa socet
 
     private static final int PORT = 5000;
-    private static List<Socket> clients = new ArrayList<>();
+    private static final List<Socket> clients = new ArrayList<>();
 
-
-    BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
-
-
+    static BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
 
     // tworzenie obiektu do rysowania
     private Canvas mainCanvas;
@@ -36,47 +35,75 @@ public class Serwer {
             ServerSocket serverSocket = new ServerSocket(PORT);
             System.out.println("[+] Serwer nasłuchuje na porcie: " + PORT);
 
-            while (true) {
+            while (running.get()) {
                 Socket clientSocket = serverSocket.accept();
                 synchronized (clients) {
                     clients.add(clientSocket);
                     System.out.println("Nowy Klient: " );
                 }
-                new Thread(new ClientHandler(clientSocket)).start();
+                new Thread(new ClientHandlerReceving(clientSocket)).start();
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+    private static class ClientHandlerReceving implements Runnable {
+        private final Socket socket;
 
-    private static class ClientHandler implements Runnable {
-        private Socket socket;
-
-        public ClientHandler(Socket socket) {
+        public ClientHandlerReceving(Socket socket) {
             this.socket = socket;
         }
 
         @Override
         public void run() {
-            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                 OutputStream out = socket.getOutputStream()) {
 
-                // TODO: nasłuch zmian przybyłych odo danego klienta
+            // dwa wątki na wysyłanie i odbiór
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                synchronized (clients) {
-                    clients.remove(socket);
-                }
-            }
+            new Thread(
+                     () -> {
+                         while(running.get()) {
+                             try {
+                                 broadcastImageChange(socket);
+                             } catch (InterruptedException e) {
+                                 throw new RuntimeException(e);
+                             }
+                        }
+                     }
+            ).start();
+
+            new Thread(
+                    () ->  {
+                        while (running.get()) {
+                            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+                                // TODO: nasłuch zmian przybyłych od danego klienta
+
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            } finally {
+                                synchronized (clients) {
+                                    clients.remove(socket);
+                                }
+                            }
+                        }
+                    }
+            ).start();
+
+
         }
 
-        private static void broadcastImage() {
+        private static void broadcastImageChange(Socket socket) throws InterruptedException {
+            ChangePrint changePrint = queueChangePrint.take();
             synchronized (clients) {
                 for (Socket client : clients) {
-                    // TODO: przesyłanie kolejnych zmian do wszystkich klientów
+                    try (OutputStream out = socket.getOutputStream()) {
+
+                        // TODO: przesył zmian do wszystkich klienta
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
