@@ -5,11 +5,9 @@ import javafx.scene.canvas.GraphicsContext;
 
 import java.io.*;
 import java.net.*;
+import java.nio.channels.ServerSocketChannel;
 import java.util.*;
-import java.awt.*;
-import java.awt.image.BufferedImage;
 import java.util.List;
-import javax.imageio.ImageIO;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -27,7 +25,7 @@ public class Serwer {
 
     // tworzenie obiektu do rysowania
     private Canvas mainCanvas;
-    private GraphicsContext mainGraphicsContext = mainCanvas.getGraphicsContext2D();;
+    private final GraphicsContext  mainGraphicsContext = mainCanvas.getGraphicsContext2D();;
 
     public static void main(String[] args) {
 
@@ -50,60 +48,68 @@ public class Serwer {
 
     private static class ClientHandlerReceving implements Runnable {
         private final Socket socket;
+        private final ObjectOutputStream out;
 
-        public ClientHandlerReceving(Socket socket) {
+
+        public ClientHandlerReceving(Socket socket)  {
             this.socket = socket;
+            try {
+                 this.out = new  ObjectOutputStream(socket.getOutputStream());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        void sendObjectToClient(ChangePrint changePrint) throws IOException {
+
+            synchronized (clients) {
+                out.writeObject(changePrint);
+            }
         }
 
         @Override
         public void run() {
-
             // dwa wątki na wysyłanie i odbiór
 
-            new Thread(
-                     () -> {
-                         while(running.get()) {
-                             try {
-                                 broadcastImageChange(socket);
-                             } catch (InterruptedException e) {
-                                 throw new RuntimeException(e);
-                             }
-                        }
-                     }
-            ).start();
+            try (final ObjectInputStream in = new ObjectInputStream(socket.getInputStream()) ) {
 
-            new Thread(
-                    () ->  {
-                        while (running.get()) {
-                            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
-
+                new Thread(
+                        () ->  {
+                            while (running.get()) {
                                 // TODO: nasłuch zmian przybyłych od danego klienta
-
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            } finally {
-                                synchronized (clients) {
-                                    clients.remove(socket);
+                                try {
+                                    ChangePrint changePrint = (ChangePrint) in.readObject();
+                                    queueChangePrint.add(changePrint);
+                                } catch (IOException | ClassNotFoundException e) {
+                                    throw new RuntimeException(e);
                                 }
                             }
                         }
-                    }
-            ).start();
+                ).start();
+
+                clients.add(socket);
+
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                synchronized (clients) {
+                    clients.remove(socket);
+                }
+            }
+
+
+
+
 
 
         }
 
-        private static void broadcastImageChange(Socket socket) throws InterruptedException {
+        private static void broadcastImageChange() throws InterruptedException {
             ChangePrint changePrint = queueChangePrint.take();
             synchronized (clients) {
                 for (Socket client : clients) {
-                    try (OutputStream out = socket.getOutputStream()) {
 
-                        // TODO: przesył zmian do wszystkich klienta
-
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
                 }
             }
         }
