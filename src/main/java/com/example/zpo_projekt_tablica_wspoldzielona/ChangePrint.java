@@ -6,6 +6,8 @@ import javafx.scene.control.Slider;
 import java.io.Serializable;
 
 public class ChangePrint implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     public final double startX, startY;
     public final double endX, endY;
     public final ColorPicker colorShape;    // kolor kształtu
