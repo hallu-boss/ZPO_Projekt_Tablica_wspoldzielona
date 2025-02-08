@@ -1,13 +1,17 @@
 package com.example.zpo_projekt_tablica_wspoldzielona;
 
+import javafx.fxml.FXML;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 
 import java.io.*;
 import java.net.*;
-import java.nio.channels.ServerSocketChannel;
 import java.util.*;
 import java.util.List;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -16,21 +20,51 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Serwer {
     static AtomicBoolean running = new AtomicBoolean(true);
-    // obsługa socet
 
     private static final int PORT = 5000;
-    private static final List<Socket> clients = new ArrayList<>();
 
     static final BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
-    static final List<ClientHandlerReceving> queueClientHandlerReceving = new ArrayList<>();
+    static final List<ClientHandlerReceving> clients = new ArrayList<>();
 
-    // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem z bazy danych
+    @FXML
     private Canvas mainCanvas;
-    private final GraphicsContext  mainGraphicsContext = mainCanvas.getGraphicsContext2D();;
 
     public static void main(String[] args) {
+        // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem z bazy danych
+        Serwer sw = new Serwer();
+         final GraphicsContext  mainGraphicsContext = sw.mainCanvas.getGraphicsContext2D();
 
         try {
+            // część sterowania serwera
+
+            new Thread(() -> {
+                System.out.println("Wpisuj komendy by sterować serwerem:");
+                BufferedReader scan = new BufferedReader(new InputStreamReader(System.in));
+                String comand;
+                while (running.get()) {
+                    try {
+                        System.out.print("> ");
+                        comand = scan.readLine();
+
+                        if( comand.equalsIgnoreCase("exit")) {
+                            running.set(false);
+                            System.out.println("Konczę prace serwera");
+                        }
+                        else if( comand.equalsIgnoreCase("show")) {
+                            System.out.println("Serwera połączony z " + clients.size() + " użytkownikami");
+                            for (ClientHandlerReceving client : clients) {
+                                System.out.println("\t " + client.getSocket().toString());
+                            }
+                        }
+
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }).start();
+
+            // Część klientów
+
             ServerSocket serverSocket = new ServerSocket(PORT);
             System.out.println("[+] Serwer nasłuchuje na porcie: " + PORT);
 
@@ -42,7 +76,7 @@ public class Serwer {
                         changToSend = queueChangePrint.poll();
                     }
                     if (changToSend != null) {
-                        for(ClientHandlerReceving client: queueClientHandlerReceving) {
+                        for(ClientHandlerReceving client: clients) {
                             try {
                                 client.sendObjectToClient(changToSend);
                             } catch (IOException e) {
@@ -55,17 +89,16 @@ public class Serwer {
 
             while (running.get()) {
                 Socket clientSocket = serverSocket.accept();
+                ClientHandlerReceving clientHandlerReceving = new ClientHandlerReceving(clientSocket, mainGraphicsContext);
+                new Thread(clientHandlerReceving).start();
                 synchronized (clients) {
-                    clients.add(clientSocket);
+                    clients.add(clientHandlerReceving);
                     System.out.println("Nowy Klient: " );
                 }
-                ClientHandlerReceving clientHandlerReceving = new ClientHandlerReceving(clientSocket);
-                new Thread(clientHandlerReceving).start();
-                queueClientHandlerReceving.add(clientHandlerReceving);
             }
 
-            for (Socket client : clients) {
-                client.close();
+            for (ClientHandlerReceving client : clients) {
+                client.getSocket().close();
             }
             serverSocket.close();
         } catch (IOException e) {
@@ -78,12 +111,20 @@ public class Serwer {
         private final ObjectOutputStream out;
 
 
-        public ClientHandlerReceving(Socket socket)  {
+        public ClientHandlerReceving(Socket socket, GraphicsContext  initGraphicsContext)  {
             this.socket = socket;
             try {
                  this.out = new  ObjectOutputStream(socket.getOutputStream());
+                 initPrintClient(initGraphicsContext);
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            }
+        }
+
+        public void initPrintClient( GraphicsContext  initGraphicsContext) throws IOException {
+            synchronized (clients) {
+                //TODO: wysłanie obrazu z bazy danych do klienta
+                out.writeObject(initGraphicsContext);
             }
         }
 
@@ -92,6 +133,8 @@ public class Serwer {
                 out.writeObject(changePrint);
             }
         }
+
+        public Socket getSocket() {return socket;}
 
         @Override
         public void run() {
@@ -111,8 +154,6 @@ public class Serwer {
                             }
                         }
                 ).start();
-
-                clients.add(socket);
 
                 this.out.close();
             } catch (IOException e) {
