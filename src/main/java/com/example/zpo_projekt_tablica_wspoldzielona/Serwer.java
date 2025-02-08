@@ -21,9 +21,10 @@ public class Serwer {
     private static final int PORT = 5000;
     private static final List<Socket> clients = new ArrayList<>();
 
-    static BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
+    static final BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
+    static final List<ClientHandlerReceving> queueClientHandlerReceving = new ArrayList<>();
 
-    // tworzenie obiektu do rysowania
+    // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem z bazy danych
     private Canvas mainCanvas;
     private final GraphicsContext  mainGraphicsContext = mainCanvas.getGraphicsContext2D();;
 
@@ -33,14 +34,40 @@ public class Serwer {
             ServerSocket serverSocket = new ServerSocket(PORT);
             System.out.println("[+] Serwer nasłuchuje na porcie: " + PORT);
 
+            new Thread(() -> {
+                ChangePrint changToSend;
+                System.out.println("Start wątku odpowiadającego klientom");
+                while (running.get()) {
+                    synchronized (queueChangePrint) {
+                        changToSend = queueChangePrint.poll();
+                    }
+                    if (changToSend != null) {
+                        for(ClientHandlerReceving client: queueClientHandlerReceving) {
+                            try {
+                                client.sendObjectToClient(changToSend);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                }
+            }).start();
+
             while (running.get()) {
                 Socket clientSocket = serverSocket.accept();
                 synchronized (clients) {
                     clients.add(clientSocket);
                     System.out.println("Nowy Klient: " );
                 }
-                new Thread(new ClientHandlerReceving(clientSocket)).start();
+                ClientHandlerReceving clientHandlerReceving = new ClientHandlerReceving(clientSocket);
+                new Thread(clientHandlerReceving).start();
+                queueClientHandlerReceving.add(clientHandlerReceving);
             }
+
+            for (Socket client : clients) {
+                client.close();
+            }
+            serverSocket.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -60,8 +87,7 @@ public class Serwer {
             }
         }
 
-        void sendObjectToClient(ChangePrint changePrint) throws IOException {
-
+        protected void sendObjectToClient(ChangePrint changePrint) throws IOException {
             synchronized (clients) {
                 out.writeObject(changePrint);
             }
@@ -70,7 +96,6 @@ public class Serwer {
         @Override
         public void run() {
             // dwa wątki na wysyłanie i odbiór
-
             try (final ObjectInputStream in = new ObjectInputStream(socket.getInputStream()) ) {
 
                 new Thread(
@@ -89,27 +114,12 @@ public class Serwer {
 
                 clients.add(socket);
 
-
+                this.out.close();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             } finally {
                 synchronized (clients) {
                     clients.remove(socket);
-                }
-            }
-
-
-
-
-
-
-        }
-
-        private static void broadcastImageChange() throws InterruptedException {
-            ChangePrint changePrint = queueChangePrint.take();
-            synchronized (clients) {
-                for (Socket client : clients) {
-
                 }
             }
         }
