@@ -17,7 +17,7 @@ import java.util.List;
 
 public class ClientController {
 
-    static final int ERASER_MUL = 2;
+    static final int ERASER_MUL = 3;
 
     @FXML
     private Slider thicknessSlider;
@@ -104,16 +104,7 @@ public class ClientController {
         double endY = event.getY();
 
         if(eraserTool.isSelected() && isDrawing) {
-            ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
-                    colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
-            tablica.add(changePrint);
-            try {
-                saveListToFile(tablica, filePath);
-            } catch (IOException e) {
-                System.out.println("Zapis tablicy nie poszedł pomyślnie");
-                throw new RuntimeException(e);
-            }
-            DrawShape.erase(mainGraphicsContext, endX, endY, thicknessSlider.getValue() * ERASER_MUL);
+            fullErase(endX, endY);
             return;
         }
 
@@ -204,11 +195,23 @@ public class ClientController {
         }
     }
 
+    private void fullErase(double endX, double endY) {
+        ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
+                colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
+        tablica.add(changePrint);
+        try {
+            saveListToFile(tablica, filePath);
+        } catch (IOException e) {
+            System.out.println("Zapis tablicy nie poszedł pomyślnie");
+            throw new RuntimeException(e);
+        }
+        DrawShape.erase(mainGraphicsContext, endX, endY, thicknessSlider.getValue() );
+    }
+
     private void dragHandle(double endX, double endY) {
         drawSimpleShape(tempGraphicsContext, startX, startY, endX, endY);
         if (eraserTool.isSelected()) {
-            DrawShape.erase(mainGraphicsContext, endX, endY, thicknessSlider.getValue());
-
+            fullErase(endX, endY);
         }
     }
 
