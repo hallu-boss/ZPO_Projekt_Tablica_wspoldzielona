@@ -1,9 +1,16 @@
 package com.example.zpo_projekt_tablica_wspoldzielona;
 
 import javafx.fxml.FXML;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.Image;
+import javafx.scene.image.PixelReader;
+import javafx.scene.image.WritableImage;
+import javafx.scene.paint.Color;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -27,10 +34,14 @@ public class Serwer {
     static final List<ClientHandlerReceving> clients = new ArrayList<>();
 
     @FXML
-    private Canvas mainCanvas;
+    static private Canvas mainCanvas = new Canvas(640, 480);
+    static private GraphicsContext mainGraphicsContext;
 
     public static void main(String[] args) {
-        // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem z bazy danych
+        mainGraphicsContext = mainCanvas.getGraphicsContext2D();
+        loadWork();
+
+        // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem obrazu z bazy danych
         Serwer sw = new Serwer();
          final GraphicsContext  mainGraphicsContext = sw.mainCanvas.getGraphicsContext2D();
 
@@ -48,6 +59,7 @@ public class Serwer {
 
                         if( comand.equalsIgnoreCase("exit")) {
                             running.set(false);
+                            saveWork();
                             System.out.println("Konczę prace serwera");
                         }
                         else if( comand.equalsIgnoreCase("show")) {
@@ -78,7 +90,9 @@ public class Serwer {
                     if (changToSend != null) {
                         for(ClientHandlerReceving client: clients) {
                             try {
-                                client.sendObjectToClient(changToSend);
+                                synchronized (clients) {
+                                    client.sendObjectToClient(changToSend);
+                                }
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
                             }
@@ -106,6 +120,45 @@ public class Serwer {
         }
     }
 
+    private static void saveWork() {
+        WritableImage writableImage = new WritableImage((int) mainCanvas.getWidth(), (int) mainCanvas.getHeight());
+        SnapshotParameters params = new SnapshotParameters();
+        params.setFill(Color.TRANSPARENT);  // lub inny kolor, jeśli potrzebujesz
+        mainCanvas.snapshot(params, writableImage);
+
+        int width = (int) writableImage.getWidth();
+        int height = (int) writableImage.getHeight();
+        BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        PixelReader pixelReader = writableImage.getPixelReader();
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // Pobieramy wartość ARGB dla danego piksela i ustawiamy ją w BufferedImage
+                int argb = pixelReader.getArgb(x, y);
+                bufferedImage.setRGB(x, y, argb);
+            }
+        }
+
+
+        File outputFile = new File("zapisanyObraz.png");
+        try {
+            ImageIO.write(bufferedImage, "png", outputFile);
+            System.out.println("Obraz został zapisany pomyślnie!");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void loadWork() {
+        File file = new File("zapisanyObraz.png");
+
+        if (file.exists()) {
+            Image image = new Image(file.toURI().toString());
+            mainGraphicsContext.drawImage(image, 0, 0);
+        } else {
+            System.out.println("Plik obrazu nie został znaleziony!");
+        }
+    }
+
     private static class ClientHandlerReceving implements Runnable {
         private final Socket socket;
         private final ObjectOutputStream out;
@@ -125,12 +178,14 @@ public class Serwer {
             synchronized (clients) {
                 //TODO: wysłanie obrazu z bazy danych do klienta
                 out.writeObject(initGraphicsContext);
+                out.flush();
             }
         }
 
         protected void sendObjectToClient(ChangePrint changePrint) throws IOException {
             synchronized (clients) {
                 out.writeObject(changePrint);
+                out.flush();
             }
         }
 
@@ -144,7 +199,6 @@ public class Serwer {
                 new Thread(
                         () ->  {
                             while (running.get()) {
-                                // TODO: nasłuch zmian przybyłych od danego klienta
                                 try {
                                     ChangePrint changePrint = (ChangePrint) in.readObject();
                                     queueChangePrint.add(changePrint);
@@ -160,7 +214,7 @@ public class Serwer {
                 throw new RuntimeException(e);
             } finally {
                 synchronized (clients) {
-                    clients.remove(socket);
+                    clients.remove(this);
                 }
             }
         }
