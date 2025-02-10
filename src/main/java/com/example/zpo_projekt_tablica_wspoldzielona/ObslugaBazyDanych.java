@@ -48,7 +48,13 @@ public class ObslugaBazyDanych {
 
     public static void main(String[] args) {
         // Przykład sprawdzenia użytkownika
-        boolean isValid = sprawdzUzytkownika("245835", "12344");
+        boolean isValid = sprawdzUzytkownika("245835", "1234");
+        System.out.println("Czy dane są poprawne? " + isValid);
+
+         isValid = sprawdzUzytkownika("245838", "1234");
+        System.out.println("Czy dane są poprawne? " + isValid);
+
+         isValid = sprawdzUzytkownika("245835", "12354");
         System.out.println("Czy dane są poprawne? " + isValid);
 
         // Pobranie i wyświetlenie wszystkich użytkowników
