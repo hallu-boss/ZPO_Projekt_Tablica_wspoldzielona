@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,9 @@ public class Client_SerwerComunicator {
                 queueChangePrint.add(changePrint);
             }
             catch (SocketTimeoutException e) {
+            }
+            catch (SocketException e) {
+
             }
             catch (IOException e) {
                 throw new RuntimeException(e);

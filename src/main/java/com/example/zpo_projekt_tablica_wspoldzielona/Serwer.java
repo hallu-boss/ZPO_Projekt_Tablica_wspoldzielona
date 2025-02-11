@@ -24,13 +24,10 @@ public class Serwer  {
     static final BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
     static final List<ClientHandlerReceving> clients = new ArrayList<>();
 
-    private static List<ChangePrint> changePrints = new ArrayList<>();
     private static List<ChangePrint> tablica;
     private final static String filePath = "tablica.ser";
 
     public static void main(String[] args) {
-
-        // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem obrazu z bazy danych
         try {
             tablica = loadListFromFile(filePath);
             System.out.println("Tablica - załadowana do pamięci ");
@@ -57,7 +54,7 @@ public class Serwer  {
                         else if( comand.equalsIgnoreCase("show")) {
                             System.out.println("Serwera połączony z " + clients.size() + " użytkownikami");
                             for (ClientHandlerReceving client : clients) {
-                                System.out.println("\t " + client.getSocket().toString());
+                                System.out.println("\t " + client.toString());
                             }
                         }
 
@@ -100,10 +97,12 @@ public class Serwer  {
                     Socket clientSocket = serverSocket.accept();
 
                     ClientHandlerReceving clientHandlerReceving = new ClientHandlerReceving(clientSocket);
-//                TODO: if( !ObslugaBazyDanych.sprawdzUzytkownika(clientHandlerReceving.getLogin(),
-//                        clientHandlerReceving.getPassword())) {
-//                    continue;
-//                }
+                    if( !ObslugaBazyDanych.sprawdzUzytkownika(clientHandlerReceving.getLogin(),
+                            clientHandlerReceving.getPassword())) {
+                        System.out.println("Użytkownik o danym loginie nie istnieje");
+                        clientHandlerReceving.getSocket().close();
+                        continue;
+                    }
                     clientHandlerReceving.sendTableToClient();
 
 
@@ -155,6 +154,7 @@ public class Serwer  {
         final ObjectInputStream in;
         final public String login, password;
 
+
         public ClientHandlerReceving(Socket socket) {
             this.socket = socket;
             try {
@@ -168,13 +168,13 @@ public class Serwer  {
 
                 System.out.println("Użytkownik : " + login + " password: " + password);
 
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (ClassNotFoundException e) {
+            } catch (IOException | ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
         }
 
+        public String getLogin() {return login;}
+        public String getPassword() {return password;}
 
         private void sendTableToClient() throws IOException {
             synchronized (tablica) {
@@ -203,7 +203,7 @@ public class Serwer  {
                     }
                 }
             } catch (IOException e) {
-                System.out.println("Klient rozłączył się: " + socket);
+                System.out.println("Klient rozłączył się: " + this.toString());
             } catch (ClassNotFoundException e) {
                 e.printStackTrace();
             } finally {
@@ -218,6 +218,9 @@ public class Serwer  {
             }
         }
 
+        public String toString() {
+            return "Użytkownik: " + login;
+        }
 
     }
 }
