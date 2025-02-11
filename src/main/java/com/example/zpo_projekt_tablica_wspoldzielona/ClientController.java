@@ -103,7 +103,6 @@ public class ClientController {
         Platform.runLater(() -> {
             Stage stage = (Stage) mainCanvas.getScene().getWindow();
             stage.setOnCloseRequest((WindowEvent event) -> {
-                // Opcjonalnie: wyświetlenie potwierdzenia zamknięcia
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                 alert.setTitle("Zamykanie aplikacji");
                 alert.setHeaderText("Czy na pewno chcesz zamknąć aplikację?");

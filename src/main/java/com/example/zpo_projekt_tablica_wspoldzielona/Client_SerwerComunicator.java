@@ -22,7 +22,6 @@ public class Client_SerwerComunicator {
     private ObjectOutputStream out;
 
     ChangePrint getModification() {
-
         return queueChangePrint.poll();
     }
 
@@ -49,7 +48,9 @@ public class Client_SerwerComunicator {
         sendClinetsData(login, passoword);
         loadImageFromServer();
         new Thread( () -> {
-            loadChangeFromSerwer();
+            while (running.get()) {
+                loadChangeFromSerwer();
+            }
         }).start();
     }
 
