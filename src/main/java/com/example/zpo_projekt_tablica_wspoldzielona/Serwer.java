@@ -1,5 +1,6 @@
 package com.example.zpo_projekt_tablica_wspoldzielona;
 
+import javafx.application.Application;
 import javafx.fxml.FXML;
 import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
@@ -25,25 +26,30 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 
-public class Serwer {
+
+public class Serwer  {
     static AtomicBoolean running = new AtomicBoolean(true);
 
     private static final int PORT = 5000;
 
+
     static final BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
     static final List<ClientHandlerReceving> clients = new ArrayList<>();
 
-    @FXML
-    static private Canvas mainCanvas = new Canvas(640, 480);
-    static private GraphicsContext mainGraphicsContext;
+    private static List<ChangePrint> changePrints = new ArrayList<>();
+    private static List<ChangePrint> tablica;
+    private final static String filePath = "tablica.ser";
 
     public static void main(String[] args) {
-        mainGraphicsContext = mainCanvas.getGraphicsContext2D();
-        loadWork();
 
         // tworzenie obiektu do rysowania TODO: zastąpić pobieraniem obrazu z bazy danych
-        Serwer sw = new Serwer();
-         final GraphicsContext  mainGraphicsContext = sw.mainCanvas.getGraphicsContext2D();
+        try {
+            tablica = loadListFromFile(filePath);
+            System.out.println("Tablica - załadowana do pamięci ");
+        } catch (IOException | ClassNotFoundException e) {
+            System.out.println("Error: Inicjaliacja tablicy się nie powiodła");
+            throw new RuntimeException(e);
+        }
 
         try {
             // część sterowania serwera
@@ -54,12 +60,10 @@ public class Serwer {
                 String comand;
                 while (running.get()) {
                     try {
-                        System.out.print("> ");
                         comand = scan.readLine();
 
                         if( comand.equalsIgnoreCase("exit")) {
                             running.set(false);
-                            saveWork();
                             System.out.println("Konczę prace serwera");
                         }
                         else if( comand.equalsIgnoreCase("show")) {
@@ -78,20 +82,20 @@ public class Serwer {
             // Część klientów
 
             ServerSocket serverSocket = new ServerSocket(PORT);
+            serverSocket.setSoTimeout(5000);
             System.out.println("[+] Serwer nasłuchuje na porcie: " + PORT);
 
             new Thread(() -> {
-                ChangePrint changToSend;
-                System.out.println("Start wątku odpowiadającego klientom");
+                ChangePrint changeToSend;
                 while (running.get()) {
                     synchronized (queueChangePrint) {
-                        changToSend = queueChangePrint.poll();
+                        changeToSend = queueChangePrint.poll();
                     }
-                    if (changToSend != null) {
+                    if (changeToSend != null) {
                         for(ClientHandlerReceving client: clients) {
                             try {
                                 synchronized (clients) {
-                                    client.sendObjectToClient(changToSend);
+                                    client.sendObjectToClient(changeToSend);
                                 }
                             } catch (IOException e) {
                                 throw new RuntimeException(e);
@@ -102,12 +106,25 @@ public class Serwer {
             }).start();
 
             while (running.get()) {
-                Socket clientSocket = serverSocket.accept();
-                ClientHandlerReceving clientHandlerReceving = new ClientHandlerReceving(clientSocket, mainGraphicsContext);
-                new Thread(clientHandlerReceving).start();
-                synchronized (clients) {
-                    clients.add(clientHandlerReceving);
-                    System.out.println("Nowy Klient: " );
+                try {
+                    Socket clientSocket = serverSocket.accept();
+
+                    ClientHandlerReceving clientHandlerReceving = new ClientHandlerReceving(clientSocket);
+//                TODO: if( !ObslugaBazyDanych.sprawdzUzytkownika(clientHandlerReceving.getLogin(),
+//                        clientHandlerReceving.getPassword())) {
+//                    continue;
+//                }
+                    clientHandlerReceving.sendTableToClient();
+
+
+                    new Thread(clientHandlerReceving).start();
+                    synchronized (clients) {
+                        clients.add(clientHandlerReceving);
+                        System.out.println("Nowy Klient: ");
+                    }
+                }
+                catch (SocketTimeoutException e) {
+
                 }
             }
 
@@ -118,66 +135,60 @@ public class Serwer {
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
 
-    private static void saveWork() {
-        WritableImage writableImage = new WritableImage((int) mainCanvas.getWidth(), (int) mainCanvas.getHeight());
-        SnapshotParameters params = new SnapshotParameters();
-        params.setFill(Color.TRANSPARENT);  // lub inny kolor, jeśli potrzebujesz
-        mainCanvas.snapshot(params, writableImage);
-
-        int width = (int) writableImage.getWidth();
-        int height = (int) writableImage.getHeight();
-        BufferedImage bufferedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        PixelReader pixelReader = writableImage.getPixelReader();
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                // Pobieramy wartość ARGB dla danego piksela i ustawiamy ją w BufferedImage
-                int argb = pixelReader.getArgb(x, y);
-                bufferedImage.setRGB(x, y, argb);
-            }
-        }
-
-
-        File outputFile = new File("zapisanyObraz.png");
         try {
-            ImageIO.write(bufferedImage, "png", outputFile);
-            System.out.println("Obraz został zapisany pomyślnie!");
+            saveListToFile(tablica, filePath);
+            System.out.println("Zakończenie pracy pomyślnie");
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 
-    private static void loadWork() {
-        File file = new File("zapisanyObraz.png");
 
-        if (file.exists()) {
-            Image image = new Image(file.toURI().toString());
-            mainGraphicsContext.drawImage(image, 0, 0);
-        } else {
-            System.out.println("Plik obrazu nie został znaleziony!");
-        }
+
+    private static void saveListToFile(List<ChangePrint> list, String filePath) throws IOException {
+        ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filePath));
+        out.writeObject(list);
+        out.close();
     }
+    public static List<ChangePrint> loadListFromFile(String filePath) throws IOException, ClassNotFoundException {
+        ObjectInputStream in = new ObjectInputStream(new FileInputStream(filePath));
+        List<ChangePrint> list = (List<ChangePrint>) in.readObject();
+        in.close();
+        return list;
+    }
+
 
     private static class ClientHandlerReceving implements Runnable {
         private final Socket socket;
-        private final ObjectOutputStream out;
+        private final ObjectOutputStream  out;
+        final ObjectInputStream in;
+        final public String login, password;
 
-
-        public ClientHandlerReceving(Socket socket, GraphicsContext  initGraphicsContext)  {
+        public ClientHandlerReceving(Socket socket) {
             this.socket = socket;
             try {
                  this.out = new  ObjectOutputStream(socket.getOutputStream());
-                 initPrintClient(initGraphicsContext);
+                this.in = new ObjectInputStream(socket.getInputStream());
+
+                 UserData userData = (UserData) in.readObject();
+
+                this.login = userData.login;
+                this.password = userData.passowrd;
+
+                System.out.println("Użytkownik : " + login + " password: " + password);
+
             } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
         }
 
-        public void initPrintClient( GraphicsContext  initGraphicsContext) throws IOException {
-            synchronized (clients) {
-                //TODO: wysłanie obrazu z bazy danych do klienta
-                out.writeObject(initGraphicsContext);
+
+        private void sendTableToClient() throws IOException {
+            synchronized (tablica) {
+                out.writeObject(tablica);
                 out.flush();
             }
         }
@@ -193,24 +204,16 @@ public class Serwer {
 
         @Override
         public void run() {
-            // dwa wątki na wysyłanie i odbiór
-            try (final ObjectInputStream in = new ObjectInputStream(socket.getInputStream()) ) {
-
-                new Thread(
-                        () ->  {
-                            while (running.get()) {
-                                try {
-                                    ChangePrint changePrint = (ChangePrint) in.readObject();
-                                    queueChangePrint.add(changePrint);
-                                } catch (IOException | ClassNotFoundException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            }
-                        }
-                ).start();
+            try {
+                while (running.get()) {
+                        ChangePrint changePrint = (ChangePrint) in.readObject();
+                        queueChangePrint.add(changePrint);
+                }
 
                 this.out.close();
             } catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (ClassNotFoundException e) {
                 throw new RuntimeException(e);
             } finally {
                 synchronized (clients) {

@@ -8,11 +8,8 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Label;
 import javafx.scene.input.MouseEvent;
 
-import javax.swing.event.ChangeEvent;
-import java.awt.*;
-import java.awt.image.BufferedImage;
+
 import java.io.*;
-import java.util.ArrayList;
 import java.util.List;
 
 public class ClientController {
@@ -36,7 +33,7 @@ public class ClientController {
     private GraphicsContext mainGraphicsContext;
     private GraphicsContext tempGraphicsContext;
 
-
+    private List<ChangePrint> tablica;
 
     @FXML
     private ColorPicker colorPicker;
@@ -51,6 +48,8 @@ public class ClientController {
     private ToggleButton circleTool;
     @FXML
     private ToggleButton eraserTool;
+
+    Client_SerwerComunicator serwerComunicator;
 
     @FXML
     public void initialize() {
@@ -75,20 +74,30 @@ public class ClientController {
         tempCanvas.addEventHandler(MouseEvent.MOUSE_DRAGGED, this::drawTemporary);
         tempCanvas.addEventHandler(MouseEvent.MOUSE_RELEASED, this::finishDrawing);
 
-        // inicjalizacja tablicy i obrazka
+       // init obrazu
         try {
-            this.tablica = loadListFromFile(filePath);
-            initPrint();
-        } catch (IOException | ClassNotFoundException e) {
-            System.out.println("Nie udało się zainicjalizować tablicy");
+            serwerComunicator = new Client_SerwerComunicator("245835", "1234");
+            tablica = serwerComunicator.getTablica();
+            loadTableFromSerwer();
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
+
 
         // Łączenie z serwerem
 
 
     }
-    private List<ChangePrint> tablica;
+
+    private void loadTableFromSerwer() {
+        for(ChangePrint element : tablica) {
+            chanePrintToCanvas(element, mainGraphicsContext);
+        }
+    }
+
 
     private void startDrawing(MouseEvent event) {
         startX = event.getX();
@@ -165,12 +174,6 @@ public class ClientController {
         ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
                 colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
         tablica.add(changePrint);
-        try {
-            saveListToFile(tablica, filePath);
-        } catch (IOException e) {
-            System.out.println("Zapis tablicy nie poszedł pomyślnie");
-            throw new RuntimeException(e);
-        }
         drawSimpleShape(mainGraphicsContext, startX, startY, endX, endY);
     }
 
@@ -199,12 +202,7 @@ public class ClientController {
         ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
                 colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
         tablica.add(changePrint);
-        try {
-            saveListToFile(tablica, filePath);
-        } catch (IOException e) {
-            System.out.println("Zapis tablicy nie poszedł pomyślnie");
-            throw new RuntimeException(e);
-        }
+
         DrawShape.erase(mainGraphicsContext, endX, endY, thicknessSlider.getValue() );
     }
 
@@ -215,22 +213,6 @@ public class ClientController {
         }
     }
 
-    private static void saveListToFile(List<ChangePrint> list, String filePath) throws IOException {
-        ObjectOutputStream out = new ObjectOutputStream(new FileOutputStream(filePath));
-        out.writeObject(list);
-        out.close();
-    }
-    public static List<ChangePrint> loadListFromFile(String filePath) throws IOException, ClassNotFoundException {
-        ObjectInputStream in = new ObjectInputStream(new FileInputStream(filePath));
-        List<ChangePrint> list = (List<ChangePrint>) in.readObject();
-        in.close();
-        return list;
-    }
-    final String filePath = "tablica.ser";
-    void initPrint() {
-        for(ChangePrint changePrint : tablica) {
-            chanePrintToCanvas(changePrint, mainGraphicsContext);
-        }
-        System.out.println("Inicjalizacja obrazka udana");
-    }
+
+
 }
