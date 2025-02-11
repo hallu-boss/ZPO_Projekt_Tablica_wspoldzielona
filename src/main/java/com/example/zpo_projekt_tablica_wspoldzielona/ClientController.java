@@ -56,7 +56,6 @@ public class ClientController {
 
     @FXML
     public void initialize() {
-        // Połączenie wartoście thicknessSlider z thicknessValue
         thicknessValue.textProperty().bind(
                 Bindings.format("%.0f", thicknessSlider.valueProperty())
         );
@@ -96,7 +95,56 @@ public class ClientController {
         } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
+        showLoginDialog();
+
         addCloseRequestHandler();
+    }
+
+    private void showLoginDialog() {
+        TextInputDialog loginDialog = new TextInputDialog();
+        loginDialog.setTitle("Logowanie");
+        loginDialog.setHeaderText("Podaj dane logowania");
+        loginDialog.setContentText("Nazwa użytkownika:");
+
+        Optional<String> usernameResult = loginDialog.showAndWait();
+        if (!usernameResult.isPresent()) {
+            Platform.exit();
+            return;
+        }
+        String username = usernameResult.get();
+
+        TextInputDialog passwordDialog = new TextInputDialog();
+        passwordDialog.setTitle("Logowanie");
+        passwordDialog.setHeaderText("Podaj dane logowania");
+        passwordDialog.setContentText("Hasło:");
+
+        Optional<String> passwordResult = passwordDialog.showAndWait();
+        if (!passwordResult.isPresent()) {
+            Platform.exit();
+            return;
+        }
+        String password = passwordResult.get();
+
+        try {
+            if( serwerComunicator != null) {
+                serwerComunicator.disconnectServer();
+            }
+            serwerComunicator = new Client_SerwerComunicator(username, password);
+
+            loadTableFromSerwer();
+
+            new Thread(() -> {
+                while (running.get()) {
+                    ChangePrint changePrint = serwerComunicator.getModification();
+                    if (changePrint != null) {
+                        chanePrintToCanvas(changePrint, mainGraphicsContext);
+                    }
+                }
+                serwerComunicator.disconnectServer();
+            }).start();
+        } catch (IOException | ClassNotFoundException e) {
+            Platform.exit();
+        }
     }
 
     private void addCloseRequestHandler() {
