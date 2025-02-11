@@ -1,19 +1,18 @@
 package com.example.zpo_projekt_tablica_wspoldzielona;
 
-import javafx.scene.image.PixelWriter;
-import javafx.scene.image.WritableImage;
-
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Client_SerwerComunicator {
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private static final int PORT = 5000;
     private Socket socket;
     private List<ChangePrint> tablica = new ArrayList<ChangePrint>();
@@ -23,21 +22,45 @@ public class Client_SerwerComunicator {
     private ObjectOutputStream out;
 
     ChangePrint getModification() {
+
         return queueChangePrint.poll();
+    }
+
+
+    private void loadChangeFromSerwer() {
+        if( !socket.isClosed()) {
+            try {
+                ChangePrint changePrint = (ChangePrint) in.readObject();
+                queueChangePrint.add(changePrint);
+            }
+            catch (SocketTimeoutException e) {
+            }
+            catch (IOException e) {
+                throw new RuntimeException(e);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+
+        }
     }
 
     public Client_SerwerComunicator(String login, String passoword) throws IOException, ClassNotFoundException {
         connectServer();
         sendClinetsData(login, passoword);
         loadImageFromServer();
-
+        new Thread( () -> {
+            loadChangeFromSerwer();
+        }).start();
     }
+
+
 
     private void connectServer() throws IOException{
         socket = new Socket("localhost", 5000);
         this.out = new ObjectOutputStream(socket.getOutputStream());
         this.out.flush();
         this.in = new ObjectInputStream(socket.getInputStream());
+        socket.setSoTimeout(1000);
     }
 
     private void sendClinetsData(String login, String password) throws IOException{
@@ -63,6 +86,7 @@ public class Client_SerwerComunicator {
             if (socket != null) socket.close();
             if (in != null) in.close();
             if (out != null) out.close();
+            running.set(false);
         } catch (IOException e) {
             System.err.println("Błąd podczas zamykania połączenia: " + e.getMessage());
         }
@@ -94,18 +118,5 @@ public class Client_SerwerComunicator {
         }
     }
 
-    public static javafx.scene.image.Image convertBufferedImageToFX(BufferedImage bufferedImage) {
-        int width = bufferedImage.getWidth();
-        int height = bufferedImage.getHeight();
-        WritableImage writableImage = new WritableImage(width, height);
-        PixelWriter pixelWriter = writableImage.getPixelWriter();
 
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int argb = bufferedImage.getRGB(x, y);
-                pixelWriter.setArgb(x, y, argb);
-            }
-        }
-        return writableImage;
-    }
 }

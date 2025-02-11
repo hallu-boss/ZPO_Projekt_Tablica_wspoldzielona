@@ -1,5 +1,6 @@
 package com.example.zpo_projekt_tablica_wspoldzielona;
 
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.fxml.FXML;
 import javafx.scene.canvas.GraphicsContext;
@@ -7,15 +8,16 @@ import javafx.scene.control.*;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Label;
 import javafx.scene.input.MouseEvent;
+import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
 
 
 import java.io.*;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ClientController {
-
-    static final int ERASER_MUL = 3;
-
     @FXML
     private Slider thicknessSlider;
 
@@ -32,7 +34,7 @@ public class ClientController {
     private boolean isDrawing = false; // Flaga trybu rysowania
     private GraphicsContext mainGraphicsContext;
     private GraphicsContext tempGraphicsContext;
-
+    private final AtomicBoolean running = new AtomicBoolean(true);
 
 
     @FXML
@@ -50,6 +52,7 @@ public class ClientController {
     private ToggleButton eraserTool;
 
     Client_SerwerComunicator serwerComunicator;
+
 
     @FXML
     public void initialize() {
@@ -80,23 +83,44 @@ public class ClientController {
             loadTableFromSerwer();
 
             new Thread( () -> {
+                while (running.get()) {
+                    ChangePrint changePrint = serwerComunicator.getModification();
+                    if( changePrint != null ) {
+                        chanePrintToCanvas(changePrint, mainGraphicsContext);
+                    }
 
-                ChangePrint changePrint = serwerComunicator.getModification();
-                if( changePrint != null ) {
-                    chanePrintToCanvas(changePrint, mainGraphicsContext);
                 }
-
+                serwerComunicator.disconnectServer();
             }).start();
 
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
+        } catch (IOException | ClassNotFoundException e) {
             throw new RuntimeException(e);
         }
-
-
+        addCloseRequestHandler();
     }
 
+    private void addCloseRequestHandler() {
+        Platform.runLater(() -> {
+            Stage stage = (Stage) mainCanvas.getScene().getWindow();
+            stage.setOnCloseRequest((WindowEvent event) -> {
+                // Opcjonalnie: wyświetlenie potwierdzenia zamknięcia
+                Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+                alert.setTitle("Zamykanie aplikacji");
+                alert.setHeaderText("Czy na pewno chcesz zamknąć aplikację?");
+                Optional<ButtonType> result = alert.showAndWait();
+                if ( result.get() != ButtonType.OK) {
+                    event.consume();  // Anuluj zamknięcie
+                    return;
+                }
+
+                running.set(false);
+                if (serwerComunicator != null) {
+                    serwerComunicator.disconnectServer();
+                }
+                System.out.println("Aplikacja zostanie zamknięta.");
+            });
+        });
+    }
     private void loadTableFromSerwer() {
         List<ChangePrint> tablica = serwerComunicator.getTablica();
         for(ChangePrint element : tablica) {
@@ -135,7 +159,7 @@ public class ClientController {
         mainGraphicsContext.setLineWidth(thicknessSlider.getValue());
 
         finishHandler(endX, endY);
-
+        tempGraphicsContext.clearRect(0, 0, tempCanvas.getWidth(), tempCanvas.getHeight());
         tempGraphicsContext.clearRect(0, 0, tempCanvas.getWidth(), tempCanvas.getHeight());
         isDrawing = false;
     }
