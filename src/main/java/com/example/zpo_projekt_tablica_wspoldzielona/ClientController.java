@@ -33,7 +33,7 @@ public class ClientController {
     private GraphicsContext mainGraphicsContext;
     private GraphicsContext tempGraphicsContext;
 
-    private List<ChangePrint> tablica;
+
 
     @FXML
     private ColorPicker colorPicker;
@@ -74,11 +74,19 @@ public class ClientController {
         tempCanvas.addEventHandler(MouseEvent.MOUSE_DRAGGED, this::drawTemporary);
         tempCanvas.addEventHandler(MouseEvent.MOUSE_RELEASED, this::finishDrawing);
 
-       // init obrazu
+       // init obrazu + łączenie z serwerem
         try {
             serwerComunicator = new Client_SerwerComunicator("245835", "1234");
-            tablica = serwerComunicator.getTablica();
             loadTableFromSerwer();
+
+            new Thread( () -> {
+
+                ChangePrint changePrint = serwerComunicator.getModification();
+                if( changePrint != null ) {
+                    chanePrintToCanvas(changePrint, mainGraphicsContext);
+                }
+
+            }).start();
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -87,12 +95,10 @@ public class ClientController {
         }
 
 
-        // Łączenie z serwerem
-
-
     }
 
     private void loadTableFromSerwer() {
+        List<ChangePrint> tablica = serwerComunicator.getTablica();
         for(ChangePrint element : tablica) {
             chanePrintToCanvas(element, mainGraphicsContext);
         }
@@ -118,7 +124,6 @@ public class ClientController {
         }
 
         tempGraphicsContext.clearRect(0, 0, tempCanvas.getWidth(), tempCanvas.getHeight());
-
         dragHandle(endX, endY);
     }
 
@@ -169,11 +174,9 @@ public class ClientController {
     }
 
     private void finishHandler(double endX, double endY) {
-        // TODO: Wysyłanie na serwer modyfikacji obrazu
-
         ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
                 colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
-        tablica.add(changePrint);
+        serwerComunicator.sedChangeToServer(changePrint);
         drawSimpleShape(mainGraphicsContext, startX, startY, endX, endY);
     }
 
@@ -201,8 +204,8 @@ public class ClientController {
     private void fullErase(double endX, double endY) {
         ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
                 colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
-        tablica.add(changePrint);
 
+        serwerComunicator.sedChangeToServer(changePrint);
         DrawShape.erase(mainGraphicsContext, endX, endY, thicknessSlider.getValue() );
     }
 

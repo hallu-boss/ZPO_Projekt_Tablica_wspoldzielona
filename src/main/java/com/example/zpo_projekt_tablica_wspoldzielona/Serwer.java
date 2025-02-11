@@ -1,17 +1,5 @@
 package com.example.zpo_projekt_tablica_wspoldzielona;
 
-import javafx.application.Application;
-import javafx.fxml.FXML;
-import javafx.scene.SnapshotParameters;
-import javafx.scene.canvas.Canvas;
-import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.image.Image;
-import javafx.scene.image.PixelReader;
-import javafx.scene.image.WritableImage;
-import javafx.scene.paint.Color;
-
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -101,6 +89,8 @@ public class Serwer  {
                                 throw new RuntimeException(e);
                             }
                         }
+
+                        tablica.add(changeToSend);
                     }
                 }
             }).start();
@@ -124,7 +114,7 @@ public class Serwer  {
                     }
                 }
                 catch (SocketTimeoutException e) {
-
+                    continue;
                 }
             }
 
@@ -168,7 +158,7 @@ public class Serwer  {
         public ClientHandlerReceving(Socket socket) {
             this.socket = socket;
             try {
-                 this.out = new  ObjectOutputStream(socket.getOutputStream());
+                this.out = new  ObjectOutputStream(socket.getOutputStream());
                 this.in = new ObjectInputStream(socket.getInputStream());
 
                  UserData userData = (UserData) in.readObject();
@@ -206,21 +196,28 @@ public class Serwer  {
         public void run() {
             try {
                 while (running.get()) {
-                        ChangePrint changePrint = (ChangePrint) in.readObject();
+                    ChangePrint changePrint = (ChangePrint) in.readObject();
+//                    System.out.println("changePrint - otrzymany ");
+                    synchronized (queueChangePrint) {
                         queueChangePrint.add(changePrint);
+                    }
                 }
-
-                this.out.close();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                System.out.println("Klient rozłączył się: " + socket);
             } catch (ClassNotFoundException e) {
-                throw new RuntimeException(e);
+                e.printStackTrace();
             } finally {
+                try {
+                    this.socket.close(); // Zamknięcie gniazda
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
                 synchronized (clients) {
                     clients.remove(this);
                 }
             }
         }
+
 
     }
 }

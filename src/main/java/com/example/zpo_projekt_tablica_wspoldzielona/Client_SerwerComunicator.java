@@ -3,24 +3,28 @@ package com.example.zpo_projekt_tablica_wspoldzielona;
 import javafx.scene.image.PixelWriter;
 import javafx.scene.image.WritableImage;
 
-import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 public class Client_SerwerComunicator {
     private static final int PORT = 5000;
     private Socket socket;
     private List<ChangePrint> tablica = new ArrayList<ChangePrint>();
+    private final BlockingQueue<ChangePrint> queueChangePrint = new LinkedBlockingQueue<>();
 
     private ObjectInputStream in;
     private ObjectOutputStream out;
 
+    ChangePrint getModification() {
+        return queueChangePrint.poll();
+    }
 
     public Client_SerwerComunicator(String login, String passoword) throws IOException, ClassNotFoundException {
         connectServer();
@@ -41,6 +45,8 @@ public class Client_SerwerComunicator {
         out.writeObject(userData);
         out.flush();
     }
+
+
 
     private void loadImageFromServer() throws IOException, ClassNotFoundException {
        synchronized (tablica) {
@@ -73,6 +79,17 @@ public class Client_SerwerComunicator {
             System.out.println("Klient nie połączył się z serwerem");
             throw new RuntimeException(e);
         } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void sedChangeToServer(ChangePrint changePrint) {
+        try {
+            if(!socket.isClosed()) {
+                out.writeObject(changePrint);
+                out.flush();
+            }
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
