@@ -87,7 +87,6 @@ public class ClientController {
                     if( changePrint != null ) {
                         chanePrintToCanvas(changePrint, mainGraphicsContext);
                     }
-
                 }
                 serwerComunicator.disconnectServer();
             }).start();
@@ -143,9 +142,11 @@ public class ClientController {
                 serwerComunicator.disconnectServer();
             }).start();
         } catch (IOException | ClassNotFoundException e) {
+            running.set(false);
             Platform.exit();
         }
     }
+
 
     private void addCloseRequestHandler() {
         Platform.runLater(() -> {
