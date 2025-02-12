@@ -13,7 +13,7 @@ public class ClientApplication extends Application {
         FXMLLoader fxmlLoader = new FXMLLoader(ClientApplication.class.getResource("client-view.fxml"));
         Scene scene = new Scene(fxmlLoader.load(), 640, 480);
 
-        stage.setTitle("Klient");
+        stage.setTitle("MY_ONLINE_Paint");
         stage.setScene(scene);
         stage.show();
     }
