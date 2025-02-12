@@ -3,11 +3,20 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Manages database operations such as user authentication and fetching user data.
+ */
 public class ObslugaBazyDanych {
     // Ścieżka do bazy SQLite
     private static final String URL = "jdbc:sqlite:src/main/database/clinets.db";  // Ścieżka do bazy danych SQLite
 
-    // Metoda do sprawdzania, czy użytkownik istnieje i czy hasło jest poprawne
+    /**
+     * Checks if a user exists in the database with the correct password.
+     *
+     * @param userNumber The user's identifier.
+     * @param password   The user's password.
+     * @return true if the user exists and the password is correct, false otherwise.
+     */
     public static boolean sprawdzUzytkownika(String userNumber, String password) {
         String sql = "SELECT * FROM UZYTKOWNICY WHERE indeks = ? AND haslo = ?";
 
@@ -26,7 +35,11 @@ public class ObslugaBazyDanych {
         }
     }
 
-    // Metoda zwracająca listę wszystkich użytkowników
+    /**
+     * Retrieves a list of all users from the database.
+     *
+     * @return A list of user identifiers.
+     */
     public static List<String> pobierzWszystkichUzytkownikow() {
         List<String> users = new ArrayList<>();
         String sql = "SELECT indeks FROM UZYTKOWNICY";  // Pobieramy tylko numery użytkowników
@@ -46,6 +59,13 @@ public class ObslugaBazyDanych {
         return users;
     }
 
+    /**
+     * The entry point for testing user authentication and retrieving all users from the database.
+     * This method checks whether certain user credentials are valid and prints the result. It also fetches
+     * and displays a list of all user identifiers stored in the database.
+     *
+     * @param args The command-line arguments (not used in this implementation).
+     */
     public static void main(String[] args) {
         // Przykład sprawdzenia użytkownika
         boolean isValid = sprawdzUzytkownika("245835", "1234");

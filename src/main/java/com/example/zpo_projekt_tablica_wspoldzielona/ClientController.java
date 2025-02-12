@@ -17,6 +17,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * The controller responsible for handling user interactions and coordinating drawing operations in the client application.
+ */
 public class ClientController {
     @FXML
     private Slider thicknessSlider;
@@ -54,6 +57,9 @@ public class ClientController {
     Client_SerwerComunicator serwerComunicator;
 
 
+    /**
+     * Initializes the canvas, tools, and connections to the server.
+     */
     @FXML
     public void initialize() {
         thicknessValue.textProperty().bind(
@@ -99,6 +105,9 @@ public class ClientController {
         addCloseRequestHandler();
     }
 
+    /**
+     * Handles login dialog for user authentication.
+     */
     private void showLoginDialog() {
         TextInputDialog loginDialog = new TextInputDialog();
         loginDialog.setTitle("Logowanie");
@@ -147,7 +156,11 @@ public class ClientController {
         }
     }
 
-
+    /**
+     * Adds a handler for the close request of the main application window.
+     * This handler displays a confirmation dialog when the user tries to close the application.
+     * If the user confirms, the application will shut down; otherwise, the close request is canceled.
+     */
     private void addCloseRequestHandler() {
         Platform.runLater(() -> {
             Stage stage = (Stage) mainCanvas.getScene().getWindow();
@@ -169,6 +182,10 @@ public class ClientController {
             });
         });
     }
+
+    /**
+     * Loads the current drawing from the server and updates the canvas.
+     */
     private void loadTableFromSerwer() {
         List<ChangePrint> tablica = serwerComunicator.getTablica();
         for(ChangePrint element : tablica) {
@@ -176,7 +193,11 @@ public class ClientController {
         }
     }
 
-
+    /**
+     * Starts drawing when the mouse is pressed.
+     *
+     * @param event The mouse event that triggers the drawing action.
+     */
     private void startDrawing(MouseEvent event) {
         startX = event.getX();
         startY = event.getY();
@@ -186,6 +207,11 @@ public class ClientController {
         tempGraphicsContext.setLineWidth(thicknessSlider.getValue());
     }
 
+    /**
+     * Draws a temporary shape while dragging the mouse.
+     *
+     * @param event The mouse event containing current mouse position.
+     */
     private void drawTemporary(MouseEvent event) {
         double endX = event.getX();
         double endY = event.getY();
@@ -199,6 +225,11 @@ public class ClientController {
         dragHandle(endX, endY);
     }
 
+    /**
+     * Finalizes the drawing after the mouse is released.
+     *
+     * @param event The mouse event that finalizes the drawing.
+     */
     private void finishDrawing(MouseEvent event) {
         double endX = event.getX();
         double endY = event.getY();
@@ -212,6 +243,17 @@ public class ClientController {
         isDrawing = false;
     }
 
+    /**
+     * Draws a simple shape (line, rectangle, triangle, or circle) on the given GraphicsContext.
+     * The shape to be drawn is determined based on the selected tool (line, rectangle, triangle, circle).
+     * If the eraser tool is selected, it erases content on the canvas instead.
+     *
+     * @param gc      The GraphicsContext on which the shape will be drawn.
+     * @param startX  The starting X coordinate of the shape.
+     * @param startY  The starting Y coordinate of the shape.
+     * @param endX    The ending X coordinate of the shape.
+     * @param endY    The ending Y coordinate of the shape.
+     */
     private void drawSimpleShape(GraphicsContext gc, double startX, double startY, double endX, double endY) {
         if (!isDrawing) {
             return;
@@ -227,6 +269,13 @@ public class ClientController {
         }
     }
 
+    /**
+     * Determines the currently selected drawing tool and returns the corresponding shape type.
+     * The method checks which tool (line, rectangle, triangle, circle, or eraser) is selected,
+     * and returns the appropriate enum value representing the shape to be drawn.
+     *
+     * @return The current shape type, represented as a value from the {@link ChangePrint.ShapeToDraw} enum.
+     */
     private ChangePrint.ShapeToDraw currentShape() {
         ChangePrint.ShapeToDraw shape;
 
@@ -245,6 +294,14 @@ public class ClientController {
         return shape;
     }
 
+    /**
+     * Finalizes the drawing operation by sending the drawing change to the server and updating the canvas.
+     * After the drawing is completed, the method creates a {@link ChangePrint} object representing the drawing
+     * and sends it to the server for broadcasting to other clients. It also updates the main canvas with the new drawing.
+     *
+     * @param endX The ending X coordinate of the drawn shape.
+     * @param endY The ending Y coordinate of the drawn shape.
+     */
     private void finishHandler(double endX, double endY) {
         ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
                 colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
@@ -252,6 +309,15 @@ public class ClientController {
         drawSimpleShape(mainGraphicsContext, startX, startY, endX, endY);
     }
 
+    /**
+     * Converts a {@link ChangePrint} object into a visual drawing on the given {@link GraphicsContext}.
+     * This method takes the drawing change (represented by the {@link ChangePrint} object) and renders it
+     * onto the canvas using the provided {@link GraphicsContext}. The shape is drawn based on the information
+     * in the {@link ChangePrint} object, such as coordinates, color, thickness, and shape type.
+     *
+     * @param changePrint The {@link ChangePrint} object containing drawing data (coordinates, color, shape type).
+     * @param gc The {@link GraphicsContext} used to render the shape onto the canvas.
+     */
     private static void chanePrintToCanvas(ChangePrint changePrint, GraphicsContext gc) {
         gc.setStroke(changePrint.getColor());
         gc.setLineWidth(changePrint.thicknessSlider);
@@ -273,6 +339,14 @@ public class ClientController {
         }
     }
 
+    /**
+     * Erases content from the canvas at the specified coordinates using the eraser tool.
+     * This method creates a {@link ChangePrint} object for the erase operation and sends it to the server.
+     * It also performs the actual erasure on the main canvas at the given coordinates with the current eraser size.
+     *
+     * @param endX The X coordinate where the erasure will occur.
+     * @param endY The Y coordinate where the erasure will occur.
+     */
     private void fullErase(double endX, double endY) {
         ChangePrint changePrint = new ChangePrint(startX, startY, endX, endY,
                 colorPicker.getValue(), thicknessSlider.getValue(), currentShape() );
@@ -281,6 +355,14 @@ public class ClientController {
         DrawShape.erase(mainGraphicsContext, endX, endY, thicknessSlider.getValue() );
     }
 
+    /**
+     * Handles the drawing or erasing operation while dragging the mouse on the canvas.
+     * Depending on the selected tool, this method either draws the selected shape or erases content.
+     * The method updates the temporary canvas to display the drawing action in real-time while dragging.
+     *
+     * @param endX The current X coordinate while dragging the mouse.
+     * @param endY The current Y coordinate while dragging the mouse.
+     */
     private void dragHandle(double endX, double endY) {
         drawSimpleShape(tempGraphicsContext, startX, startY, endX, endY);
         if (eraserTool.isSelected()) {
